@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#05060f">
+<title>Space HUD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05060f;
+    --cyan: #3df2ff;
+    --violet: #9a6bff;
+    --magenta: #ff4fd8;
+    --gold: #ffd166;
+    --text: #e8f1ff;
+    --dim: #8a97c4;
+    --panel: rgba(14, 18, 44, 0.62);
+    --line: rgba(61, 242, 255, 0.35);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    background:
+      radial-gradient(900px 600px at 85% -10%, rgba(154,107,255,.35), transparent 60%),
+      radial-gradient(700px 500px at -10% 30%, rgba(61,242,255,.18), transparent 60%),
+      radial-gradient(800px 600px at 50% 120%, rgba(255,79,216,.22), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: "Rajdhani", system-ui, sans-serif;
+    font-size: 16px;
+    padding: max(14px, env(safe-area-inset-top)) 14px max(24px, env(safe-area-inset-bottom));
+  }
+  #stars { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+  .planet {
+    position: fixed; top: -70px; right: -60px; width: 200px; height: 200px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #b99cff 0%, #6a45d6 35%, #231650 70%, #0a0820 100%);
+    box-shadow: 0 0 60px rgba(154,107,255,.55), inset -20px -20px 50px rgba(0,0,0,.6);
+    opacity: .85; z-index: 0; pointer-events: none;
+  }
+  .planet::after {
+    content: ""; position: absolute; left: -35%; top: 42%; width: 170%; height: 22%;
+    border: 2px solid rgba(61,242,255,.45); border-radius: 50%;
+    transform: rotate(-18deg); box-shadow: 0 0 14px rgba(61,242,255,.4);
+  }
+  #app { position: relative; z-index: 1; max-width: 480px; margin: 0 auto; display: grid; gap: 14px; }
+
+  .card {
+    position: relative; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 18px; padding: 18px 16px 14px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 0 22px rgba(61,242,255,.08), inset 0 0 30px rgba(154,107,255,.06);
+  }
+  .card::before {
+    content: ""; position: absolute; inset: 0; border-radius: 18px; padding: 1px;
+    background: linear-gradient(135deg, rgba(61,242,255,.9), transparent 35%, transparent 65%, rgba(255,79,216,.8));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude; pointer-events: none;
+  }
+  .tag {
+    position: absolute; top: -9px; left: 16px; padding: 0 10px; background: var(--bg);
+    font-family: "Orbitron", sans-serif; font-size: 10px; letter-spacing: 3px;
+    color: var(--cyan); text-transform: uppercase; border-radius: 6px;
+    max-width: 55%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .tag.dx { left: auto; right: 16px; color: var(--magenta); letter-spacing: 1.5px; }
+
+  /* Orologio */
+  #ora {
+    font-family: "Orbitron", sans-serif; font-weight: 900; font-size: 56px; line-height: 1;
+    letter-spacing: 1px; text-align: center; color: #fff;
+    text-shadow: 0 0 12px rgba(61,242,255,.8), 0 0 34px rgba(154,107,255,.6);
+  }
+  #ora .sec { font-size: 24px; color: var(--cyan); margin-left: 4px; text-shadow: 0 0 10px var(--cyan); }
+  #data { text-align: center; margin-top: 6px; font-size: 19px; font-weight: 600; letter-spacing: 3px; text-transform: uppercase; color: var(--dim); }
+  .bar { height: 6px; margin-top: 12px; border-radius: 6px; background: rgba(255,255,255,.08); overflow: hidden; }
+  #barin { height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, var(--cyan), var(--violet), var(--magenta)); box-shadow: 0 0 10px var(--cyan); transition: width 1s linear; }
+  .chips { display: flex; gap: 8px; margin-top: 10px; justify-content: center; flex-wrap: wrap; }
+  .chip { font-family: "Orbitron", sans-serif; font-size: 10px; letter-spacing: 1.5px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 20px; color: var(--cyan); }
+  .chip.festa { display: none; color: var(--gold); border-color: rgba(255,209,102,.6); box-shadow: 0 0 10px rgba(255,209,102,.25); text-transform: uppercase; }
+
+  /* Ricerca località */
+  .search { display: flex; gap: 8px; margin-bottom: 12px; }
+  #cerca { flex: 1; min-width: 0; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 12px; color: var(--text); padding: 9px 12px; font-size: 16px; font-family: inherit; outline: none; }
+  #cerca:focus { box-shadow: 0 0 12px rgba(61,242,255,.5); }
+  #risultati { list-style: none; margin: -4px 0 12px; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: rgba(8,10,28,.85); display: none; }
+  #risultati li { padding: 10px 12px; font-size: 16px; border-bottom: 1px solid rgba(255,255,255,.08); cursor: pointer; }
+  #risultati li:last-child { border-bottom: 0; }
+  #risultati li:active { background: rgba(61,242,255,.18); }
+  #risultati li small { color: var(--dim); font-size: 13px; }
+  #risultati li.msg { color: var(--dim); cursor: default; font-size: 14px; }
+
+  /* Meteo */
+  .mrow { display: flex; align-items: center; gap: 12px; }
+  .mleft { flex: 0 0 auto; text-align: center; min-width: 128px; }
+  #icona { font-size: 40px; line-height: 1; }
+  .trow { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  #temp { font-family: "Orbitron", sans-serif; font-weight: 700; font-size: 42px; line-height: 1.05; color: #fff; text-shadow: 0 0 16px rgba(255,79,216,.6); }
+  .mm { font-family: "Orbitron", sans-serif; font-size: 12px; font-weight: 700; line-height: 1.55; text-align: left; white-space: nowrap; }
+  .mm .mx { color: var(--magenta); text-shadow: 0 0 8px rgba(255,79,216,.5); }
+  .mm .mn { color: var(--cyan); text-shadow: 0 0 8px rgba(61,242,255,.5); }
+  #cond { font-size: 15px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--cyan); font-weight: 600; }
+  .stats { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat { border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 6px 10px; background: rgba(255,255,255,.03); }
+  .stat span { display: block; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--dim); }
+  .stat b { font-family: "Orbitron", sans-serif; font-size: 16px; font-weight: 500; }
+  .vento-box { display: flex; align-items: center; gap: 10px; }
+  .comp { width: 44px; height: 44px; flex: 0 0 44px; }
+
+  /* Previsioni */
+  .prev { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pv { text-align: center; padding: 12px 4px 10px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 0 18px rgba(154,107,255,.12); }
+  .pv .g { font-family: "Orbitron", sans-serif; font-size: 11px; letter-spacing: 2px; color: var(--magenta); text-transform: uppercase; }
+  .pv .i { font-size: 30px; margin: 4px 0 2px; }
+  .pv .t { font-family: "Orbitron", sans-serif; font-weight: 700; font-size: 18px; }
+  .pv .t small { color: var(--dim); font-weight: 500; font-size: 13px; }
+  .pv .p { font-size: 13px; color: var(--cyan); margin-top: 2px; }
+
+  /* Calendario */
+  .cnav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  #mese { font-family: "Orbitron", sans-serif; font-size: 13px; letter-spacing: 3px; text-transform: uppercase; color: #fff; cursor: pointer; }
+  .btn { background: transparent; color: var(--cyan); border: 1px solid var(--line); border-radius: 10px; width: 38px; height: 34px; font-size: 16px; font-family: "Orbitron", sans-serif; cursor: pointer; flex: 0 0 auto; }
+  .btn:active { background: rgba(61,242,255,.18); }
+  #cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+  #cal .h { font-family: "Orbitron", sans-serif; font-size: 10px; letter-spacing: 1px; color: var(--dim); padding: 2px 0 4px; }
+  #cal .h.fe { color: var(--magenta); }
+  #cal .d { position: relative; font-size: 14px; height: 34px; line-height: 28px; font-weight: 500; }
+  #cal .d.fe { color: var(--magenta); }
+  #cal .d.hol { color: var(--gold); font-weight: 700; text-shadow: 0 0 8px rgba(255,209,102,.5); }
+  #cal .d.pat { color: #c9aaff; font-weight: 700; text-shadow: 0 0 8px rgba(154,107,255,.8); }
+  #cal .d.hol::after, #cal .d.pat::after {
+    content: ""; position: absolute; left: 50%; bottom: 1px; width: 5px; height: 5px; margin-left: -2.5px;
+    border-radius: 50%; background: var(--gold); box-shadow: 0 0 6px var(--gold);
+  }
+  #cal .d.pat::after { content: "★"; width: auto; height: auto; background: none; box-shadow: none; border-radius: 0;
+    font-size: 9px; line-height: 9px; margin-left: -4px; color: #c9aaff; bottom: 0; text-shadow: 0 0 6px var(--violet); }
+  #cal .d.oggi span { display: inline-block; width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--cyan), var(--violet)); color: #05060f; font-weight: 700; text-shadow: none; box-shadow: 0 0 14px var(--cyan); }
+  .legenda { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 8px; font-size: 12px; letter-spacing: 1px; color: var(--dim); }
+  .lm { color: var(--magenta); } .lg { color: var(--gold); } .lv { color: #c9aaff; }
+  #elfest { margin: 10px 0 0; padding: 8px 0 0; border-top: 1px dashed rgba(255,255,255,.15); list-style: none; font-size: 15px; }
+  #elfest:empty { display: none; }
+  #elfest li { display: flex; gap: 10px; padding: 3px 0; }
+  #elfest li b { font-family: "Orbitron", sans-serif; font-size: 12px; min-width: 26px; color: var(--gold); padding-top: 2px; }
+  #elfest li.pat b, #elfest li.pat { color: #c9aaff; }
+  #elfest li span { color: var(--text); }
+
+  /* Promemoria */
+  #elenco { list-style: none; margin: 0; padding: 0; }
+  #elenco li { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px dashed rgba(255,255,255,.12); font-size: 17px; }
+  #elenco li .ck { flex: 0 0 22px; height: 22px; border: 2px solid var(--cyan); border-radius: 6px; display: grid; place-items: center; font-size: 14px; color: #05060f; cursor: pointer; }
+  #elenco li.fatto .ck { background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
+  #elenco li .tx { flex: 1; word-break: break-word; cursor: pointer; }
+  #elenco li.fatto .tx { text-decoration: line-through; color: var(--dim); }
+  #elenco li .del { background: none; border: none; color: var(--magenta); font-size: 22px; padding: 0 6px; cursor: pointer; }
+  #vuoto { color: var(--dim); font-size: 14px; letter-spacing: 1px; padding: 6px 0; }
+  .add { display: flex; gap: 8px; margin-top: 10px; }
+  #nuovo { flex: 1; min-width: 0; background: rgba(255,255,255,.05); border: 1px solid var(--line); border-radius: 12px; color: var(--text); padding: 10px 12px; font-size: 16px; font-family: inherit; outline: none; }
+  #nuovo:focus { box-shadow: 0 0 12px rgba(61,242,255,.5); }
+  #aggiungi { width: 46px; height: auto; border-radius: 12px; font-size: 22px; }
+  #stato { text-align: center; font-size: 11px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+
+  @media (max-width: 360px) {
+    #ora { font-size: 46px; }
+    .mleft { min-width: 108px; }
+    #temp { font-size: 34px; }
+    .mm { font-size: 11px; }
+  }
+  @media (prefers-reduced-motion: reduce) { #barin { transition: none; } }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="planet"></div>
+
+<div id="app">
+
+  <!-- OROLOGIO -->
+  <section class="card">
+    <span class="tag">Tempo</span>
+    <div id="ora">--:--<span class="sec">--</span></div>
+    <div id="data">&nbsp;</div>
+    <div class="bar"><div id="barin"></div></div>
+    <div class="chips">
+      <span class="chip" id="chGiorno">GIORNO --</span>
+      <span class="chip" id="chSett">SETT --</span>
+      <span class="chip" id="chPerc">--%</span>
+      <span class="chip festa" id="chFesta"></span>
+    </div>
+  </section>
+
+  <!-- METEO -->
+  <section class="card">
+    <span class="tag">Meteo</span>
+    <span class="tag dx" id="luogo">Ricerca...</span>
+
+    <div class="search">
+      <input type="search" id="cerca" placeholder="Cerca una località..." autocomplete="off" enterkeyhint="search">
+      <button class="btn" id="vai" type="button" aria-label="Cerca">🔍</button>
+      <button class="btn" id="gps" type="button" aria-label="Usa la mia posizione">📍</button>
+    </div>
+    <ul id="risultati"></ul>
+
+    <div class="mrow">
+      <div class="mleft">
+        <div id="icona">🛰️</div>
+        <div class="trow">
+          <div id="temp">--°</div>
+          <div class="mm">
+            <div class="mx">▲ <span id="tmax">--</span></div>
+            <div class="mn">▼ <span id="tmin">--</span></div>
+          </div>
+        </div>
+        <div id="cond">Scansione</div>
+      </div>
+      <div class="stats">
+        <div class="stat"><span>Umidità</span><b id="umid">--</b></div>
+        <div class="stat"><span>Pressione</span><b id="press">--</b></div>
+        <div class="stat"><span>Vento</span><b id="vento">--</b></div>
+        <div class="stat">
+          <span>Direzione</span>
+          <div class="vento-box">
+            <svg class="comp" viewBox="0 0 44 44">
+              <circle cx="22" cy="22" r="20" fill="none" stroke="rgba(61,242,255,.5)" stroke-width="1.5"/>
+              <text x="22" y="9" text-anchor="middle" font-size="7" fill="#ff4fd8" font-family="Orbitron">N</text>
+              <g id="ago" style="transform-origin:22px 22px;transition:transform 1s ease">
+                <polygon points="22,10 26,24 22,21 18,24" fill="#3df2ff"/>
+                <line x1="22" y1="21" x2="22" y2="34" stroke="#3df2ff" stroke-width="1.5"/>
+              </g>
+            </svg>
+            <b id="dir">--</b>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PREVISIONI -->
+  <div class="prev">
+    <div class="pv" id="p1">--</div>
+    <div class="pv" id="p2">--</div>
+    <div class="pv" id="p3">--</div>
+  </div>
+
+  <!-- CALENDARIO -->
+  <section class="card">
+    <span class="tag">Calendario</span>
+    <div class="cnav">
+      <button class="btn" id="prec" type="button" aria-label="Mese precedente">&lt;</button>
+      <div id="mese"></div>
+      <button class="btn" id="succ" type="button" aria-label="Mese successivo">&gt;</button>
+    </div>
+    <div id="cal"></div>
+    <div class="legenda">
+      <span class="lm">■ ven · sab · dom</span>
+      <span class="lg">● festività</span>
+      <span class="lv">★ patrono</span>
+    </div>
+    <ul id="elfest"></ul>
+  </section>
+
+  <!-- PROMEMORIA -->
+  <section class="card">
+    <span class="tag">Promemoria</span>
+    <ul id="elenco"></ul>
+    <div id="vuoto">// nessun promemoria in orbita</div>
+    <div class="add">
+      <input type="text" id="nuovo" maxlength="80" placeholder="Nuova missione..." autocomplete="off">
+      <button class="btn" id="aggiungi" type="button" aria-label="Aggiungi">+</button>
+    </div>
+  </section>
+
+  <div id="stato">&nbsp;</div>
+</div>
+
+<script>
+/* ============ CONFIGURAZIONE ============ */
+const DEFAULT_POS = { lat: 38.2208, lon: 15.2414, nome: "Milazzo" };  /* usata solo se GPS e rete falliscono */
+const MINUTI_AGGIORNAMENTO_METEO = 5;
+
+/* Patrono locale (Priolo Gargallo: Sant'Angelo Custode, 2 ottobre) */
+const PATRONO = { mese: 10, giorno: 2, nome: "Sant'Angelo Custode (patrono di Priolo Gargallo)", breve: "Sant'Angelo Custode" };
+/* ========================================= */
+
+const GIORNI = ["Domenica","Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato"];
+const GIORNI_BREVI = ["Dom","Lun","Mar","Mer","Gio","Ven","Sab"];
+const MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"];
+const $ = id => document.getElementById(id);
+const due = n => String(n).padStart(2, "0");
+
+/* ---------- FESTIVITÀ ---------- */
+function pasqua(y) {
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mese = Math.floor((h + l - 7 * m + 114) / 31);
+  const giorno = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(y, mese - 1, giorno);
+}
+const cacheFest = {};
+function festivita(y) {
+  if (cacheFest[y]) return cacheFest[y];
+  const F = {};
+  const agg = (m, g, nome, tipo) => { F[m + "-" + g] = { nome: nome, tipo: tipo || "naz" }; };
+  agg(1, 1, "Capodanno");
+  agg(1, 6, "Epifania");
+  agg(4, 25, "Festa della Liberazione");
+  agg(5, 1, "Festa dei Lavoratori");
+  agg(6, 2, "Festa della Repubblica");
+  agg(8, 15, "Ferragosto");
+  agg(11, 1, "Ognissanti");
+  agg(12, 8, "Immacolata Concezione");
+  agg(12, 25, "Natale");
+  agg(12, 26, "Santo Stefano");
+  const p = pasqua(y);
+  agg(p.getMonth() + 1, p.getDate(), "Pasqua");
+  const pq = new Date(y, p.getMonth(), p.getDate() + 1);
+  agg(pq.getMonth() + 1, pq.getDate(), "Lunedì dell'Angelo");
+  agg(PATRONO.mese, PATRONO.giorno, PATRONO.nome, "pat");
+  cacheFest[y] = F;
+  return F;
+}
+
+/* ---------- STELLE ---------- */
+(function () {
+  const cv = $("stars"), cx = cv.getContext("2d");
+  let W, H, stars = [], shoot = null;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function init() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = cv.width = innerWidth * dpr; H = cv.height = innerHeight * dpr;
+    stars = [];
+    const n = Math.round((innerWidth * innerHeight) / 5500);
+    for (let i = 0; i < n; i++) {
+      stars.push({ x: Math.random() * W, y: Math.random() * H,
+        r: (Math.random() * 1.3 + .3) * dpr, f: Math.random() * Math.PI * 2,
+        v: Math.random() * .03 + .008,
+        c: ["#ffffff", "#bfe9ff", "#d9c7ff", "#ffd6f4"][Math.floor(Math.random() * 4)] });
+    }
+  }
+  function frame() {
+    cx.clearRect(0, 0, W, H);
+    for (const s of stars) {
+      s.f += s.v;
+      cx.globalAlpha = .45 + .55 * Math.abs(Math.sin(s.f));
+      cx.fillStyle = s.c;
+      cx.beginPath(); cx.arc(s.x, s.y, s.r, 0, 6.283); cx.fill();
+    }
+    cx.globalAlpha = 1;
+    if (!shoot && Math.random() < .004) {
+      shoot = { x: Math.random() * W * .8, y: Math.random() * H * .4, l: 0 };
+    }
+    if (shoot) {
+      const g = cx.createLinearGradient(shoot.x, shoot.y, shoot.x - 90, shoot.y - 45);
+      g.addColorStop(0, "rgba(255,255,255,.9)"); g.addColorStop(1, "rgba(61,242,255,0)");
+      cx.strokeStyle = g; cx.lineWidth = 2;
+      cx.beginPath(); cx.moveTo(shoot.x, shoot.y); cx.lineTo(shoot.x - 90, shoot.y - 45); cx.stroke();
+      shoot.x += 14; shoot.y += 7; shoot.l++;
+      if (shoot.l > 40) shoot = null;
+    }
+    if (!reduce) requestAnimationFrame(frame);
+  }
+  init();
+  addEventListener("resize", init);
+  frame();
+})();
+
+/* ---------- OROLOGIO ---------- */
+const bisestile = y => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+function giornoAnno(d) {
+  return Math.floor((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(d.getFullYear(), 0, 0)) / 86400000);
+}
+function settimanaIso(d) {
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t - y0) / 86400000 + 1) / 7);
+}
+let ultimoGiorno = -1;
+function aggiornaOra() {
+  const d = new Date();
+  $("ora").innerHTML = due(d.getHours()) + ":" + due(d.getMinutes()) + '<span class="sec">' + due(d.getSeconds()) + "</span>";
+  $("data").textContent = GIORNI[d.getDay()] + " " + d.getDate() + " " + MESI[d.getMonth()] + " " + d.getFullYear();
+  const sec = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
+  const perc = sec / 864;
+  $("barin").style.width = perc.toFixed(1) + "%";
+  $("chPerc").textContent = "GIORNATA " + Math.round(perc) + "%";
+  const n = giornoAnno(d), tot = bisestile(d.getFullYear()) ? 366 : 365;
+  $("chGiorno").textContent = "GIORNO " + n + "/" + tot;
+  $("chSett").textContent = "SETT " + due(settimanaIso(d));
+  if (d.getDate() !== ultimoGiorno) {
+    ultimoGiorno = d.getDate();
+    disegnaCalendario();
+    const f = festivita(d.getFullYear())[(d.getMonth() + 1) + "-" + d.getDate()];
+    const ch = $("chFesta");
+    if (f) { ch.textContent = "OGGI: " + (f.tipo === "pat" ? PATRONO.breve : f.nome); ch.style.display = "inline-block"; }
+    else { ch.style.display = "none"; }
+  }
+}
+
+/* ---------- CALENDARIO ---------- */
+const oggi0 = new Date();
+let vAnno = oggi0.getFullYear(), vMese = oggi0.getMonth();
+function disegnaCalendario() {
+  const t = new Date();
+  const F = festivita(vAnno);
+  $("mese").textContent = MESI[vMese] + " " + vAnno;
+  let h = ["L","M","M","G","V","S","D"].map((x, i) => '<div class="h' + (i >= 4 ? " fe" : "") + '">' + x + "</div>").join("");
+  const offset = (new Date(vAnno, vMese, 1).getDay() + 6) % 7;
+  const giorni = new Date(vAnno, vMese + 1, 0).getDate();
+  for (let i = 0; i < offset; i++) h += '<div class="d"></div>';
+  const elenco = [];
+  for (let g = 1; g <= giorni; g++) {
+    const col = (offset + g - 1) % 7;          /* 0 = lunedì ... 4 = venerdì, 5 = sabato, 6 = domenica */
+    const e = g === t.getDate() && vMese === t.getMonth() && vAnno === t.getFullYear();
+    const f = F[(vMese + 1) + "-" + g];
+    let cls = "d";
+    if (col >= 4) cls += " fe";
+    if (f) {
+      cls += f.tipo === "pat" ? " pat" : " hol";
+      elenco.push({ g: g, nome: f.nome, tipo: f.tipo });
+    }
+    if (e) cls += " oggi";
+    h += '<div class="' + cls + '"' + (f ? ' title="' + f.nome.replace(/"/g, "&quot;") + '"' : "") + ">" +
+         (e ? "<span>" + g + "</span>" : g) + "</div>";
+  }
+  $("cal").innerHTML = h;
+
+  const ul = $("elfest");
+  ul.innerHTML = "";
+  elenco.forEach(x => {
+    const li = document.createElement("li");
+    if (x.tipo === "pat") li.className = "pat";
+    const b = document.createElement("b"); b.textContent = x.g;
+    const s = document.createElement("span"); s.textContent = (x.tipo === "pat" ? "★ " : "") + x.nome;
+    li.append(b, s);
+    ul.appendChild(li);
+  });
+}
+$("prec").onclick = () => { vMese--; if (vMese < 0) { vMese = 11; vAnno--; } disegnaCalendario(); };
+$("succ").onclick = () => { vMese++; if (vMese > 11) { vMese = 0; vAnno++; } disegnaCalendario(); };
+$("mese").onclick = () => { const n = new Date(); vAnno = n.getFullYear(); vMese = n.getMonth(); disegnaCalendario(); };
+
+/* ---------- LOCALITÀ ---------- */
+const CHIAVE_POS = "spazio_luogo_v1";
+let pos = null;   /* { lat, lon, nome, fonte: "gps" | "ip" | "manuale" | "default" } */
+
+const ICONE_FONTE = { gps: "📍", ip: "🌐", manuale: "🔎", default: "📌" };
+function mostraLuogo() {
+  $("luogo").textContent = pos ? (ICONE_FONTE[pos.fonte] || "") + " " + pos.nome : "Ricerca...";
+}
+
+function fetchTimeout(url, ms) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms || 8000);
+  return fetch(url, { signal: ctrl.signal, cache: "no-store" }).finally(() => clearTimeout(t));
+}
+
+function gpsPosition() {
+  return new Promise((ok, ko) => {
+    if (!navigator.geolocation) return ko(new Error("no geolocation"));
+    navigator.geolocation.getCurrentPosition(
+      p => ok({ lat: p.coords.latitude, lon: p.coords.longitude }),
+      e => ko(e),
+      { enableHighAccuracy: false, timeout: 9000, maximumAge: 600000 }
+    );
+  });
+}
+
+async function nomeDaCoordinate(lat, lon) {
+  try {
+    const r = await (await fetchTimeout(
+      "https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=" + lat +
+      "&longitude=" + lon + "&localityLanguage=it", 6000)).json();
+    return r.city || r.locality || r.principalSubdivision || "Posizione attuale";
+  } catch (e) { return "Posizione attuale"; }
+}
+
+async function posizioneIP() {
+  const r = await (await fetchTimeout("https://ipwho.is/", 7000)).json();
+  if (!r || r.success === false || r.latitude == null) throw new Error("ip fail");
+  return { lat: r.latitude, lon: r.longitude, nome: r.city || r.region || "Posizione rete", fonte: "ip" };
+}
+
+async function rilevaPosizione() {
+  $("luogo").textContent = "Ricerca...";
+  /* 1. GPS */
+  try {
+    const g = await gpsPosition();
+    const nome = await nomeDaCoordinate(g.lat, g.lon);
+    return { lat: g.lat, lon: g.lon, nome: nome, fonte: "gps" };
+  } catch (e) { /* passa all'IP */ }
+  /* 2. Connessione (IP) */
+  try { return await posizioneIP(); } catch (e) { /* passa al default */ }
+  /* 3. Default */
+  return Object.assign({ fonte: "default" }, DEFAULT_POS);
+}
+
+async function avviaLocalita() {
+  let salvata = null;
+  try { salvata = JSON.parse(localStorage.getItem(CHIAVE_POS)); } catch (e) {}
+  if (salvata && salvata.lat != null) {
+    pos = Object.assign({}, salvata, { fonte: "manuale" });
+  } else {
+    pos = await rilevaPosizione();
+  }
+  mostraLuogo();
+  aggiornaMeteo();
+}
+
+/* Ricerca per nome (Open-Meteo Geocoding) */
+const lista = $("risultati");
+function mostraMsg(t) {
+  lista.innerHTML = "";
+  const li = document.createElement("li"); li.className = "msg"; li.textContent = t;
+  lista.appendChild(li); lista.style.display = "block";
+}
+async function cercaLocalita() {
+  const q = $("cerca").value.trim();
+  if (q.length < 2) { lista.style.display = "none"; return; }
+  mostraMsg("Ricerca in corso...");
+  try {
+    const r = await (await fetchTimeout(
+      "https://geocoding-api.open-meteo.com/v1/search?name=" + encodeURIComponent(q) +
+      "&count=6&language=it&format=json", 8000)).json();
+    if (!r.results || !r.results.length) { mostraMsg("Nessun risultato"); return; }
+    lista.innerHTML = "";
+    r.results.forEach(x => {
+      const li = document.createElement("li");
+      const det = [x.admin1, x.country].filter(Boolean).join(", ");
+      li.appendChild(document.createTextNode(x.name + " "));
+      const sm = document.createElement("small"); sm.textContent = det; li.appendChild(sm);
+      li.onclick = () => scegli({ lat: x.latitude, lon: x.longitude, nome: x.name });
+      lista.appendChild(li);
+    });
+    lista.style.display = "block";
+  } catch (e) { mostraMsg("Ricerca non riuscita, riprova"); }
+}
+function scegli(p) {
+  try { localStorage.setItem(CHIAVE_POS, JSON.stringify(p)); } catch (e) {}
+  pos = Object.assign({}, p, { fonte: "manuale" });
+  $("cerca").value = ""; lista.style.display = "none";
+  mostraLuogo(); aggiornaMeteo();
+}
+$("vai").onclick = cercaLocalita;
+$("cerca").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); cercaLocalita(); $("cerca").blur(); } });
+$("gps").onclick = async () => {
+  try { localStorage.removeItem(CHIAVE_POS); } catch (e) {}
+  $("cerca").value = ""; lista.style.display = "none";
+  pos = await rilevaPosizione();
+  mostraLuogo(); aggiornaMeteo();
+};
+
+/* ---------- METEO ---------- */
+function meteoInfo(c, giorno) {
+  if (c === 0) return [giorno ? "☀️" : "🌙", "Sereno"];
+  if (c === 1) return [giorno ? "🌤️" : "🌙", "Quasi sereno"];
+  if (c === 2) return ["⛅", "Poco nuvoloso"];
+  if (c === 3) return ["☁️", "Nuvoloso"];
+  if (c === 45 || c === 48) return ["🌫️", "Nebbia"];
+  if (c >= 51 && c <= 55) return ["🌦️", "Pioviggine"];
+  if (c === 56 || c === 57 || c === 66 || c === 67) return ["🌧️", "Pioggia gelata"];
+  if (c === 61) return ["🌧️", "Pioggia debole"];
+  if (c === 63) return ["🌧️", "Pioggia"];
+  if (c === 65) return ["🌧️", "Pioggia forte"];
+  if (c >= 71 && c <= 77) return ["❄️", "Neve"];
+  if (c >= 80 && c <= 82) return ["🌦️", c === 80 ? "Rovesci deboli" : c === 81 ? "Rovesci" : "Rovesci forti"];
+  if (c === 85 || c === 86) return ["🌨️", "Rovesci di neve"];
+  if (c === 95) return ["⛈️", "Temporale"];
+  if (c === 96 || c === 99) return ["⛈️", "Temporale e grandine"];
+  return ["🪐", "Variabile"];
+}
+const dirNome = g => ["N","NE","E","SE","S","SO","O","NO"][Math.round(g / 45) % 8];
+
+async function aggiornaMeteo() {
+  if (!pos) return;
+  const url = "https://api.open-meteo.com/v1/forecast?latitude=" + pos.lat + "&longitude=" + pos.lon +
+    "&current=temperature_2m,relative_humidity_2m,pressure_msl,wind_speed_10m,wind_direction_10m,weather_code,is_day" +
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
+    "&timezone=auto&forecast_days=4&wind_speed_unit=kmh";
+  try {
+    const r = await (await fetchTimeout(url, 10000)).json();
+    const c = r.current;
+    const dd = r.daily;
+    const [ic, desc] = meteoInfo(c.weather_code, c.is_day === 1);
+    $("icona").textContent = ic;
+    $("cond").textContent = desc;
+    $("temp").textContent = Math.round(c.temperature_2m) + "°";
+    $("tmax").textContent = Math.round(dd.temperature_2m_max[0]) + "°";
+    $("tmin").textContent = Math.round(dd.temperature_2m_min[0]) + "°";
+    $("umid").textContent = Math.round(c.relative_humidity_2m) + " %";
+    $("press").textContent = Math.round(c.pressure_msl) + " hPa";
+    $("vento").textContent = Math.round(c.wind_speed_10m) + " km/h";
+    $("dir").textContent = dirNome(c.wind_direction_10m) + " " + Math.round(c.wind_direction_10m) + "°";
+    $("ago").style.transform = "rotate(" + Math.round(c.wind_direction_10m + 180) + "deg)";
+
+    for (let i = 1; i <= 3; i++) {
+      const data = new Date(dd.time[i] + "T12:00:00");
+      const [ic2] = meteoInfo(dd.weather_code[i], true);
+      const p = dd.precipitation_probability_max ? dd.precipitation_probability_max[i] : null;
+      $("p" + i).innerHTML =
+        '<div class="g">' + GIORNI_BREVI[data.getDay()] + " " + data.getDate() + "</div>" +
+        '<div class="i">' + ic2 + "</div>" +
+        '<div class="t">' + Math.round(dd.temperature_2m_max[i]) + "° <small>" + Math.round(dd.temperature_2m_min[i]) + "°</small></div>" +
+        '<div class="p">' + (p !== null ? "💧 " + p + "%" : "&nbsp;") + "</div>";
+    }
+    const n = new Date();
+    $("stato").textContent = "// meteo aggiornato alle " + due(n.getHours()) + ":" + due(n.getMinutes());
+  } catch (e) {
+    $("stato").textContent = "// meteo non raggiungibile, riprovo";
+  }
+}
+
+/* ---------- PROMEMORIA ---------- */
+const CHIAVE = "spazio_promemoria_v1";
+let note = [];
+try { note = JSON.parse(localStorage.getItem(CHIAVE)) || []; } catch (e) { note = []; }
+const salva = () => { try { localStorage.setItem(CHIAVE, JSON.stringify(note)); } catch (e) {} };
+
+function disegnaNote() {
+  const ul = $("elenco");
+  ul.innerHTML = "";
+  note.forEach((n, i) => {
+    const li = document.createElement("li");
+    if (n.d) li.className = "fatto";
+    const ck = document.createElement("div"); ck.className = "ck"; ck.textContent = n.d ? "✓" : "";
+    const tx = document.createElement("div"); tx.className = "tx"; tx.textContent = n.t;
+    const del = document.createElement("button"); del.className = "del"; del.textContent = "×"; del.setAttribute("aria-label", "Elimina");
+    const toggle = () => { n.d = !n.d; salva(); disegnaNote(); };
+    ck.onclick = toggle; tx.onclick = toggle;
+    del.onclick = () => { note.splice(i, 1); salva(); disegnaNote(); };
+    li.append(ck, tx, del);
+    ul.appendChild(li);
+  });
+  $("vuoto").style.display = note.length ? "none" : "block";
+}
+function aggiungi() {
+  const campo = $("nuovo");
+  const testo = campo.value.trim();
+  if (!testo) return;
+  if (note.length >= 20) { $("stato").textContent = "// massimo 20 promemoria"; return; }
+  note.push({ t: testo, d: false });
+  campo.value = "";
+  salva(); disegnaNote();
+}
+$("aggiungi").onclick = aggiungi;
+$("nuovo").addEventListener("keydown", e => { if (e.key === "Enter") aggiungi(); });
+
+/* ---------- AVVIO ---------- */
+aggiornaOra();
+disegnaCalendario();
+disegnaNote();
+avviaLocalita();
+setInterval(aggiornaOra, 1000);
+setInterval(aggiornaMeteo, MINUTI_AGGIORNAMENTO_METEO * 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) { aggiornaOra(); aggiornaMeteo(); } });
+</script>
+</body>
+</html>
